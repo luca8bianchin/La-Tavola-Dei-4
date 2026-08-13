@@ -292,8 +292,8 @@ code{background:rgba(31,77,51,.08);padding:1px 6px;border-radius:6px;font-size:1
    condiviso si collega in automatico.
    (Opzionale) puoi comunque metterli qui come default:
    ============================================================ */
-const SUPABASE_URL  = ""; // opzionale
-const SUPABASE_ANON = ""; // opzionale
+const SUPABASE_URL  = "https://sqcsaedoyyxloknrprgk.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY3NhZWRveXl4bG9rbnJwcmdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MTIwNzAsImV4cCI6MjEwMjE4ODA3MH0.UsAN0asIbeQ4z_bGcDPyUbGhqcZPMwG9w-DLPvb3_Ho";
 
 /* ---------- costanti ---------- */
 const FRIENDS = ["Luca","Arianna","Asia","Elia"];
@@ -542,9 +542,6 @@ function renderHome(){
       </button>
       <button class="iconbtn" id="refreshBtn" onclick="liveRefresh()" aria-label="Aggiorna">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
-      </button>
-      <button class="iconbtn" onclick="shareApp()" aria-label="Invita">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
       </button>
     </div>
 
@@ -940,11 +937,7 @@ function renderSettings(){
     ${usingCloud? `<button class="addnew" onclick="clearSbConfig()" style="margin-top:6px;">Scollega</button>`:""}
 
     <div class="section-label">Invita gli amici</div>
-    <button class="btn-primary" onclick="shareApp()" style="margin-bottom:8px;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
-      Condividi il link su WhatsApp
-    </button>
-    <div class="fab-note">${usingCloud? "Il link contiene la connessione: chi lo apre sceglie chi è e vota subito." : "Collega prima il database, così il link condividerà anche la connessione."}</div>
+    <div class="note">Manda il link dell'app in chat WhatsApp. Chi lo apre sceglie chi è e inizia a votare — è già tutto collegato.</div>
   </div>`;
 }
 window.switchUser=(f)=>{ state.user=f; localStorage.setItem("t4_user",f); toast(`Ora sei ${f}`); go("home"); };
