@@ -391,6 +391,7 @@ const CATS = [
   {key:"special",  label:"Special"},
 ];
 const MONTHS = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+const APP_VERSION = "v8 · serate collassabili";
 
 /* ---------- stato ---------- */
 let SB = null;
@@ -733,6 +734,8 @@ function renderHome(){
     <div class="list" id="list">
       ${cards.length? cards.map((x,i)=>rcard(x,i)).join("") : emptyState()}
     </div>
+
+    <div class="fab-note" style="opacity:.55;margin-top:20px;">La Tavola dei 4 · ${APP_VERSION}</div>
   </div>`;
 
   positionPill();
