@@ -260,6 +260,20 @@ input[type=date].input{color:var(--text);}
 .vscore{font-size:11.5px;color:var(--muted);background:var(--green-tint);border-radius:999px;padding:5px 10px;font-weight:600;}
 .vscore b{color:var(--green);font-weight:700;}
 .specialnote{margin-top:10px;background:var(--green-tint);border-radius:12px;padding:10px 12px;font-size:13.5px;color:var(--green);line-height:1.4;}
+.dishbox{margin-top:10px;background:var(--green-tint);border:1px solid var(--line);border-radius:12px;
+  padding:10px 13px;display:flex;align-items:center;justify-content:space-between;gap:10px;transition:transform .12s ease;}
+.dishbox:active{transform:scale(.98);}
+.dishbox .dl{display:block;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--green-2);font-weight:700;opacity:.85;margin-bottom:2px;}
+.dishbox .dv{font-size:14.5px;color:var(--green);font-weight:600;line-height:1.3;}
+.dishbox .dv.empty{color:var(--muted);font-weight:600;}
+.dishbox svg{width:16px;height:16px;stroke:var(--green-2);flex:0 0 auto;}
+.sess-special{display:flex;align-items:center;gap:8px;background:var(--green-tint);border-radius:12px;
+  padding:9px 12px;margin-bottom:12px;font-size:13.5px;color:var(--green);transition:transform .12s ease;}
+.sess-special:active{transform:scale(.99);}
+.sess-special .star{color:var(--gold);font-size:15px;}
+.sess-special .st{font-weight:700;}
+.sess-special .muted{color:var(--muted);font-weight:600;}
+.sess-special svg{width:14px;height:14px;stroke:var(--green-2);margin-left:auto;flex:0 0 auto;}
 .vactions{display:flex;gap:8px;margin-top:11px;}
 .vactions button{font-size:12.5px;font-weight:600;color:var(--muted);background:var(--card);border:1px solid var(--line);
   border-radius:11px;padding:8px 13px;display:flex;align-items:center;gap:6px;transition:transform .12s,background .15s;}
@@ -460,14 +474,24 @@ const DB = {
       d.restaurants.push(rec); lsSave(d); return rec;
     }
   },
-  async addSession(restaurant_id, date){
+  async addSession(restaurant_id, date, special){
     date = date || new Date().toISOString().slice(0,10);
+    special = special || null;
     if(usingCloud){
-      const {data,error} = await SB.from("sessions").insert({restaurant_id,date,created_by:state.user}).select().single();
+      const {data,error} = await SB.from("sessions").insert({restaurant_id,date,special,created_by:state.user}).select().single();
       if(error) throw error; return data;
     }else{
-      const d=lsLoad(); const rec={id:uid(),restaurant_id,date,created_by:state.user,created_at:new Date().toISOString()};
+      const d=lsLoad(); const rec={id:uid(),restaurant_id,date,special,created_by:state.user,created_at:new Date().toISOString()};
       d.sessions.push(rec); lsSave(d); return rec;
+    }
+  },
+  async updateSessionSpecial(id, special){
+    if(usingCloud){
+      const {error}=await SB.from("sessions").update({special}).eq("id",id);
+      if(error) throw error;
+    }else{
+      const d=lsLoad(); const s=d.sessions.find(x=>x.id===id);
+      if(s){ s.special=special; } lsSave(d);
     }
   },
   async upsertVote(vote){
@@ -813,6 +837,12 @@ function renderPick(){
         <input class="input" id="newCountry" placeholder="Es. Italia" value="${escapeHtml(state.ctx.newCountry||'')}">
       </div>
     </div>
+
+    <div class="section-label">Piatto special della serata</div>
+    <div class="field">
+      <input class="input" id="sessSpecial" value="${escapeHtml(state.ctx.sessionSpecial||'')}" placeholder="Es. Tagliatelle al tartufo (facoltativo)">
+    </div>
+    <div class="note" style="margin-top:-4px;">È la pietanza specifica che voterete tutti nella categoria Special. Potrete modificarla in qualsiasi momento.</div>
   </div>
   <div class="savebar">
     <button class="btn-primary" onclick="confirmPick()">Continua a votare</button>
@@ -822,6 +852,7 @@ function capturePickForm(){
   const de=document.getElementById("sessDate"); if(de) state.ctx.sessionDate=de.value;
   const nn=document.getElementById("newName"); const nc=document.getElementById("newCountry");
   if(nn) state.ctx.newName=nn.value; if(nc) state.ctx.newCountry=nc.value;
+  const se=document.getElementById("sessSpecial"); if(se) state.ctx.sessionSpecial=se.value;
 }
 window.selectRest=(rid)=>{
   capturePickForm();
@@ -848,8 +879,8 @@ window.confirmPick=async()=>{
       rid=rec.id; state.restaurants.push(rec);
     }
     if(!rid){ toast("Seleziona o aggiungi un ristorante"); return; }
-    // crea nuova sessione con la data scelta
-    const sess=await DB.addSession(rid, date);
+    // crea nuova sessione con data e piatto special scelti
+    const sess=await DB.addSession(rid, date, (state.ctx.sessionSpecial||"").trim());
     state.sessions.push(sess);
     state.ctx={sessionId:sess.id, rid};
     go("vote");
@@ -867,7 +898,8 @@ function renderVote(){
     servizio:existing.servizio??null, special:existing.special??null
   };
   state.ctx.vals=vals;
-  const note = state.ctx.note ?? (existing.special_note||"");
+  const sess = state.sessions.find(x=>x.id===state.ctx.sessionId);
+  const specialDish = sess && sess.special ? sess.special : "";
 
   app().innerHTML=`
   <div class="screen slideLeft">
@@ -899,9 +931,12 @@ function renderVote(){
           `).join("")}
         </div>
         ${c.key==="special"? `
-          <div class="field" style="margin:14px 0 2px;">
-            <label>Nota special (scritta a mano)</label>
-            <textarea class="input" id="specialNote" placeholder="Cosa rende speciale questo posto stasera?">${escapeHtml(note)}</textarea>
+          <div class="dishbox" onclick="editSessionSpecial('${state.ctx.sessionId}')">
+            <div style="min-width:0">
+              <span class="dl">Piatto special da votare</span>
+              <span class="dv ${specialDish?'':'empty'}">${specialDish? escapeHtml(specialDish) : 'Tocca per impostare il piatto'}</span>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
           </div>`:""}
       </div>
     `).join("")}
@@ -946,14 +981,12 @@ window.saveVote=async()=>{
   const vals=state.ctx.vals;
   const missing=CATS.filter(c=>vals[c.key]==null);
   if(missing.length){ toast("Completa tutte le categorie ("+missing.map(m=>m.label).join(", ")+")"); return; }
-  const noteEl=document.getElementById("specialNote");
-  const note=noteEl? noteEl.value.trim() : "";
   const vote={
     session_id:state.ctx.sessionId,
     restaurant_id:state.ctx.rid,
     user_name:state.user,
     location:vals.location, menu:vals.menu, prezzo:vals.prezzo,
-    servizio:vals.servizio, special:vals.special, special_note:note
+    servizio:vals.servizio, special:vals.special
   };
   try{
     await DB.upsertVote(vote);
@@ -961,7 +994,7 @@ window.saveVote=async()=>{
     const i=state.votes.findIndex(v=>v.session_id===vote.session_id && v.user_name===state.user);
     if(i>=0) state.votes[i]={...state.votes[i],...vote}; else state.votes.push({id:uid(),...vote});
     toast("Voto salvato! 🎉");
-    state.ctx.note=undefined; state.ctx.vals=undefined;
+    state.ctx.vals=undefined;
     openDetail(vote.restaurant_id);
   }catch(e){ toast("Errore nel salvataggio: "+(e.message||e)); }
 };
@@ -1022,6 +1055,11 @@ function renderDetail(){
             </button>
           </div>
         </div>
+        <div class="sess-special" onclick="editSessionSpecial('${s.id}')">
+          <span class="star">★</span>
+          <span><span class="st">Special:</span> ${s.special? escapeHtml(s.special) : '<span class="muted">tocca per impostare il piatto</span>'}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        </div>
         <div class="votelist">
           ${vs.length? vs.map(v=>voteRow(v)).join("") : `<div class="pc" style="color:var(--muted);font-size:13px;padding:4px 2px;">Nessun voto in questa serata.</div>`}
         </div>
@@ -1057,7 +1095,6 @@ function voteRow(v){
     <div class="vscores">
       ${CATS.map(cc=>`<div class="vscore">${cc.label} <b>${fmt(Number(v[cc.key]))}</b></div>`).join("")}
     </div>
-    ${v.special_note? `<div class="specialnote"><span class="sl">Special</span>${escapeHtml(v.special_note)}</div>`:""}
     <div class="vactions">
       ${isOwn? `<button onclick="editMyVote('${v.session_id}','${v.restaurant_id}')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
@@ -1294,6 +1331,49 @@ function uiConfirm({title, message, confirmLabel="Elimina", danger=true}){
     ov.onclick=(e)=>{ if(e.target===ov) close(false); };
   });
 }
+function uiPrompt({title, message="", value="", placeholder="", confirmLabel="Salva"}){
+  return new Promise(resolve=>{
+    const ov=document.createElement("div");
+    ov.className="modal-ov";
+    ov.innerHTML=`
+      <div class="modal">
+        <div class="modal-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 21l1.1-6.5L2.6 9.8l6.5-.9L12 3z"/></svg>
+        </div>
+        <div class="modal-title">${escapeHtml(title)}</div>
+        ${message?`<div class="modal-msg">${message}</div>`:""}
+        <input class="input" id="promptInput" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" style="margin-bottom:16px;text-align:center;">
+        <div class="modal-actions">
+          <button class="modal-btn cancel">Annulla</button>
+          <button class="modal-btn ok">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=>ov.classList.add("show"));
+    const inp=ov.querySelector("#promptInput");
+    setTimeout(()=>{ inp.focus(); },220);
+    const close=(val)=>{ ov.classList.remove("show"); setTimeout(()=>ov.remove(),240); resolve(val); };
+    ov.querySelector(".cancel").onclick=()=>close(null);
+    ov.querySelector(".ok").onclick=()=>close(inp.value.trim());
+    ov.onclick=(e)=>{ if(e.target===ov) close(null); };
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); close(inp.value.trim()); } });
+  });
+}
+window.editSessionSpecial=async(sid)=>{
+  const s=state.sessions.find(x=>x.id===sid);
+  const val=await uiPrompt({
+    title:"Piatto special",
+    message:"La pietanza specifica che votate in questa serata. Può modificarla chiunque.",
+    value:s?s.special||"":"", placeholder:"Es. Tagliatelle al tartufo", confirmLabel:"Salva"
+  });
+  if(val===null) return;
+  try{
+    await DB.updateSessionSpecial(sid, val);
+    if(s) s.special=val;
+    toast("Special aggiornato ✓");
+    render();
+  }catch(e){ toast("Errore: "+(e.message||e)); }
+};
 function escapeHtml(s){ return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 function escapeAttr(s){ return String(s??"").replace(/['"\\]/g,"\\$&"); }
 
