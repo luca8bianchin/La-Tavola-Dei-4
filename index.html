@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eaf3ec">
+<title>La Tavola dei 4</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#e9f2ec;
+  --bg2:#f3f8f4;
+  --card:#f7fbf8;
+  --card-hi:#ffffff;
+  --green:#1f4d33;
+  --green-2:#2d6a45;
+  --green-soft:#cfe6d6;
+  --green-tint:#e3f0e7;
+  --gold:#c9a24b;
+  --accent:#c96f3c;
+  --text:#12241a;
+  --muted:#6d8577;
+  --muted-2:#94a89b;
+  --line:rgba(31,77,51,.10);
+  --shadow:0 8px 30px rgba(31,77,51,.10);
+  --shadow-soft:0 2px 12px rgba(31,77,51,.07);
+  --radius:26px;
+  --radius-lg:34px;
+  --serif:"Iowan Old Style","Apple Garamond","Palatino Linotype","Palatino",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;}
+body{
+  font-family:var(--sans);
+  background:
+    radial-gradient(120% 80% at 50% -10%, #f2f9f3 0%, var(--bg) 55%, #dfeee3 100%);
+  color:var(--text);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:none;
+}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+input,textarea{font-family:inherit;}
+
+#app{max-width:520px;margin:0 auto;min-height:100dvh;position:relative;padding:calc(env(safe-area-inset-top) + 8px) 0 0;}
+
+/* dotted texture */
+.dots{
+  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(rgba(31,77,51,.10) 1px, transparent 1px);
+  background-size:22px 22px;background-position:0 0;
+  -webkit-mask-image:linear-gradient(180deg,#000,rgba(0,0,0,.25));
+}
+
+.screen{position:relative;z-index:1;padding:6px 18px 140px;animation:screenIn .45s cubic-bezier(.22,.9,.28,1);}
+@keyframes screenIn{from{opacity:0;transform:translateY(14px) scale(.985);}to{opacity:1;transform:none;}}
+.slideLeft{animation:slideLeft .4s cubic-bezier(.22,.9,.28,1);}
+.slideRight{animation:slideRight .4s cubic-bezier(.22,.9,.28,1);}
+@keyframes slideLeft{from{opacity:0;transform:translateX(34px);}to{opacity:1;transform:none;}}
+@keyframes slideRight{from{opacity:0;transform:translateX(-34px);}to{opacity:1;transform:none;}}
+
+/* Header */
+.eyebrow{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.32em;text-transform:uppercase;margin:14px 4px 2px;}
+.title{font-family:var(--serif);font-size:40px;line-height:1.02;font-weight:600;margin:0 4px 4px;letter-spacing:-.01em;}
+.headrow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.userchip{
+  display:inline-flex;align-items:center;gap:7px;background:var(--card-hi);
+  border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:14px;font-weight:600;
+  box-shadow:var(--shadow-soft);white-space:nowrap;margin-top:18px;color:var(--green);
+}
+.userchip .dot{width:8px;height:8px;border-radius:50%;background:var(--green-2);}
+
+/* Buttons */
+.btn-primary{
+  width:100%;background:linear-gradient(180deg,var(--green-2),var(--green));
+  color:#fff;font-size:17px;font-weight:600;padding:17px;border-radius:22px;
+  box-shadow:0 10px 24px rgba(31,77,51,.28);display:flex;align-items:center;justify-content:center;gap:9px;
+  transition:transform .15s ease,box-shadow .2s ease;
+}
+.btn-primary:active{transform:scale(.97);box-shadow:0 6px 16px rgba(31,77,51,.22);}
+.iconbtn{
+  width:56px;height:56px;flex:0 0 auto;background:var(--card-hi);border:1px solid var(--line);
+  border-radius:20px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-soft);
+  transition:transform .15s ease,background .2s;
+}
+.iconbtn:active{transform:scale(.92);background:var(--green-tint);}
+.iconbtn svg{width:22px;height:22px;stroke:var(--green);}
+.actionrow{display:flex;gap:12px;margin:16px 0 4px;}
+.actionrow .btn-primary{flex:1;}
+
+.spin{animation:spin .7s linear;}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* Segmented control */
+.seg{
+  display:flex;background:var(--card-hi);border:1px solid var(--line);border-radius:999px;
+  padding:6px;margin:18px 0 8px;box-shadow:var(--shadow-soft);position:relative;
+}
+.seg button{flex:1;padding:12px;border-radius:999px;font-size:15px;font-weight:600;color:var(--muted);
+  z-index:1;display:flex;align-items:center;justify-content:center;gap:7px;transition:color .25s;}
+.seg button.active{color:#fff;}
+.seg .pill{position:absolute;top:6px;bottom:6px;border-radius:999px;
+  background:linear-gradient(180deg,var(--green-2),var(--green));
+  box-shadow:0 6px 14px rgba(31,77,51,.25);transition:transform .38s cubic-bezier(.3,1.1,.35,1),width .38s cubic-bezier(.3,1.1,.35,1);z-index:0;}
+.seg svg{width:17px;height:17px;}
+
+/* Restaurant card */
+.list{display:flex;flex-direction:column;gap:16px;margin-top:6px;}
+.rcard{
+  background:linear-gradient(180deg,var(--card-hi),var(--card));
+  border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 8px;
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+  transition:transform .18s ease,box-shadow .2s ease;
+  animation:cardIn .5s cubic-bezier(.22,.9,.28,1) both;
+}
+@keyframes cardIn{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:none;}}
+.rcard:active{transform:scale(.985);box-shadow:var(--shadow-soft);}
+.rtop{display:flex;align-items:flex-start;gap:12px;}
+.rank{
+  width:30px;height:30px;flex:0 0 auto;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;background:var(--green-soft);color:var(--green);margin-top:6px;
+}
+.rank.gold{background:var(--gold);color:#3a2c07;box-shadow:0 4px 10px rgba(201,162,75,.4);}
+.rname{font-family:var(--serif);font-size:26px;font-weight:600;line-height:1.05;margin:0;letter-spacing:-.01em;}
+.rmeta{color:var(--muted);font-size:13.5px;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.flagdot{display:inline-flex;align-items:center;gap:4px;background:var(--green-tint);border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;color:var(--green-2);}
+.rtotal{margin-left:auto;text-align:right;flex:0 0 auto;}
+.rtotal .num{font-family:var(--serif);font-size:40px;font-weight:600;line-height:1;color:var(--green);letter-spacing:-.02em;}
+.rtotal .lbl{font-size:10.5px;letter-spacing:.18em;color:var(--muted);font-weight:600;margin-top:2px;}
+.rtotal.top .num{color:var(--gold);}
+.rdiv{height:1px;background:var(--line);margin:14px 0 10px;}
+.cats{display:flex;justify-content:space-between;gap:4px;padding-bottom:10px;}
+.cat{flex:1;text-align:center;}
+.cat .v{font-size:17px;font-weight:700;color:var(--text);}
+.cat .k{font-size:9.5px;letter-spacing:.1em;color:var(--muted);font-weight:600;margin-top:3px;text-transform:uppercase;}
+.count-val{font-variant-numeric:tabular-nums;}
+
+/* Empty */
+.empty{text-align:center;padding:60px 24px;color:var(--muted);}
+.empty .big{font-family:var(--serif);font-size:24px;color:var(--green);margin-bottom:8px;}
+.empty svg{width:56px;height:56px;stroke:var(--green-soft);margin-bottom:14px;}
+
+/* Sheet / modal screens */
+.sheethead{display:flex;align-items:center;gap:12px;margin:6px 0 4px;}
+.back{width:44px;height:44px;border-radius:14px;background:var(--card-hi);border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-soft);transition:transform .15s;}
+.back:active{transform:scale(.9);}
+.back svg{width:20px;height:20px;stroke:var(--green);}
+.sheettitle{font-family:var(--serif);font-size:26px;font-weight:600;}
+
+.section-label{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:22px 4px 10px;}
+
+/* Restaurant picker */
+.picklist{display:flex;flex-direction:column;gap:10px;max-height:44vh;overflow-y:auto;padding:2px;-webkit-overflow-scrolling:touch;}
+.pickitem{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+  border-radius:18px;padding:15px 16px;box-shadow:var(--shadow-soft);transition:transform .14s,border-color .2s,background .2s;}
+.pickitem:active{transform:scale(.98);}
+.pickitem.sel{border-color:var(--green-2);background:var(--green-tint);}
+.pickitem .pn{font-family:var(--serif);font-size:19px;font-weight:600;}
+.pickitem .pc{font-size:12.5px;color:var(--muted);margin-top:1px;}
+.pickitem .check{margin-left:auto;width:24px;height:24px;border-radius:50%;border:2px solid var(--green-soft);flex:0 0 auto;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.pickitem.sel .check{background:var(--green-2);border-color:var(--green-2);}
+.pickitem.sel .check svg{width:14px;height:14px;stroke:#fff;stroke-width:3;opacity:1;}
+.pickitem .check svg{opacity:0;transition:opacity .2s;}
+
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 4px 7px;}
+.input{width:100%;background:var(--card-hi);border:1px solid var(--line);border-radius:16px;
+  padding:15px 16px;font-size:16px;color:var(--text);box-shadow:var(--shadow-soft);outline:none;transition:border-color .2s;}
+.input:focus{border-color:var(--green-2);}
+textarea.input{resize:none;min-height:80px;line-height:1.4;}
+
+.addnew{display:flex;align-items:center;gap:10px;justify-content:center;color:var(--green-2);
+  font-weight:600;font-size:15px;padding:14px;border:1.5px dashed var(--green-soft);border-radius:18px;margin-top:12px;transition:background .2s;}
+.addnew:active{background:var(--green-tint);}
+.addnew svg{width:20px;height:20px;stroke:var(--green-2);}
+
+/* Vote sliders */
+.voter{background:var(--card-hi);border:1px solid var(--line);border-radius:22px;padding:18px 18px 8px;
+  box-shadow:var(--shadow-soft);margin-bottom:14px;animation:cardIn .45s both;}
+.voter .vhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;}
+.voter .vname{font-size:16px;font-weight:600;}
+.voter .vval{font-family:var(--serif);font-size:30px;font-weight:600;color:var(--green);transition:transform .12s;}
+.voter .vval.bump{transform:scale(1.28);color:var(--green-2);}
+.slider{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:999px;margin:14px 0 6px;
+  background:linear-gradient(90deg,var(--green-2) 0%,var(--green-2) var(--pct,50%),var(--green-soft) var(--pct,50%),var(--green-soft) 100%);outline:none;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;
+  background:#fff;border:2px solid var(--green-2);box-shadow:0 3px 8px rgba(31,77,51,.3);cursor:pointer;transition:transform .1s;}
+.slider:active::-webkit-slider-thumb{transform:scale(1.15);}
+.slider::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid var(--green-2);}
+.scalerow{display:flex;justify-content:space-between;font-size:10px;color:var(--muted-2);padding:0 2px;}
+
+/* Detail */
+.hero{background:linear-gradient(180deg,var(--card-hi),var(--card));border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:22px;box-shadow:var(--shadow);text-align:center;margin-top:8px;animation:cardIn .5s both;}
+.hero .hn{font-family:var(--serif);font-size:32px;font-weight:600;line-height:1.05;}
+.hero .hc{color:var(--muted);font-size:14px;margin-top:6px;}
+.hero .hbig{font-family:var(--serif);font-size:64px;font-weight:600;color:var(--green);line-height:1;margin:14px 0 2px;letter-spacing:-.02em;}
+.hero .hlbl{font-size:11px;letter-spacing:.2em;color:var(--muted);font-weight:600;}
+.hero .hcats{display:flex;justify-content:space-between;gap:4px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);}
+.miniprog{margin-top:16px;}
+.progrow{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.progrow .pk{width:78px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.progrow .pbar{flex:1;height:9px;background:var(--green-tint);border-radius:999px;overflow:hidden;}
+.progrow .pfill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--green-2),var(--green));width:0;transition:width .8s cubic-bezier(.3,1,.4,1);}
+.progrow .pv{width:34px;text-align:right;font-size:14px;font-weight:700;color:var(--green);}
+
+.sess{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow-soft);animation:cardIn .45s both;}
+.sesshead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.sesshead .sd{font-size:14px;font-weight:700;}
+.sesshead .savg{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--green);}
+.votelist{display:flex;flex-direction:column;gap:8px;}
+.vrow{background:var(--card-hi);border:1px solid var(--line);border-radius:14px;padding:11px 13px;}
+.vrow .vr-top{display:flex;justify-content:space-between;align-items:center;}
+.vrow .who{font-weight:600;font-size:14px;display:flex;align-items:center;gap:7px;}
+.vrow .who .av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.vrow .vr-tot{font-family:var(--serif);font-size:18px;font-weight:600;color:var(--green);}
+.vscores{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px;}
+.vscore{font-size:11px;color:var(--muted);}
+.vscore b{color:var(--text);font-weight:700;}
+.specialnote{margin-top:8px;background:var(--green-tint);border-radius:10px;padding:9px 11px;font-size:13px;color:var(--green);line-height:1.35;}
+.specialnote .sl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--green-2);font-weight:700;display:block;margin-bottom:2px;opacity:.8;}
+
+/* Onboarding */
+.onbwrap{min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px 26px 40px;position:relative;z-index:1;}
+.onbwrap .eyebrow{text-align:center;}
+.onbwrap .title{text-align:center;font-size:46px;margin-bottom:8px;}
+.onbsub{text-align:center;color:var(--muted);font-size:15.5px;line-height:1.5;margin:0 auto 30px;max-width:300px;}
+.who-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.who-card{background:linear-gradient(180deg,var(--card-hi),var(--card));border:1px solid var(--line);border-radius:24px;
+  padding:24px 16px;text-align:center;box-shadow:var(--shadow);transition:transform .15s,border-color .2s;animation:cardIn .5s both;}
+.who-card:active{transform:scale(.95);border-color:var(--green-2);}
+.who-card .av{width:60px;height:60px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--serif);font-size:26px;font-weight:600;color:#fff;box-shadow:0 6px 14px rgba(31,77,51,.25);}
+.who-card .wn{font-family:var(--serif);font-size:20px;font-weight:600;}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 26px);transform:translateX(-50%) translateY(20px);
+  background:var(--green);color:#fff;padding:13px 22px;border-radius:999px;font-size:14.5px;font-weight:600;
+  box-shadow:0 10px 30px rgba(31,77,51,.35);opacity:0;pointer-events:none;transition:all .35s cubic-bezier(.3,1.1,.35,1);z-index:100;max-width:88%;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* status pill (backend) */
+.statusbar{display:flex;align-items:center;gap:7px;justify-content:center;margin:14px 4px 0;font-size:12px;color:var(--muted);}
+.statusbar .sd{width:7px;height:7px;border-radius:50%;background:var(--gold);}
+.statusbar .sd.on{background:#3aa76d;}
+.linkbtn{color:var(--green-2);font-weight:600;text-decoration:underline;font-size:12px;}
+
+/* settings */
+.note{font-size:13px;color:var(--muted);line-height:1.5;background:var(--green-tint);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
+code{background:rgba(31,77,51,.08);padding:1px 6px;border-radius:6px;font-size:12px;}
+
+.fab-note{text-align:center;font-size:12px;color:var(--muted-2);margin-top:20px;}
+.savebar{position:fixed;left:0;right:0;bottom:0;padding:14px 18px calc(env(safe-area-inset-bottom) + 16px);
+  background:linear-gradient(180deg,transparent,var(--bg) 30%);z-index:20;max-width:520px;margin:0 auto;}
+</style>
+</head>
+<body>
+<div class="dots"></div>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG SUPABASE
+   Incolla qui URL e chiave "anon public" del tuo progetto.
+   Finché sono vuoti, l'app funziona in locale su questo telefono.
+   ============================================================ */
+const SUPABASE_URL  = ""; // es: "https://xxxx.supabase.co"
+const SUPABASE_ANON = ""; // es: "eyJhbGciOi..."
+
+/* ---------- costanti ---------- */
+const FRIENDS = ["Luca","Arianna","Asia","Elia"];
+const AV_COLORS = {Luca:"#2d6a45", Arianna:"#c96f3c", Asia:"#7a5cc0", Elia:"#c9a24b"};
+const CATS = [
+  {key:"location", label:"Location"},
+  {key:"menu",     label:"Menù"},
+  {key:"prezzo",   label:"Prezzo"},
+  {key:"servizio", label:"Servizio"},
+  {key:"special",  label:"Special"},
+];
+const MONTHS = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+
+/* ---------- stato ---------- */
+let SB = null;
+let usingCloud = false;
+let state = {
+  user: localStorage.getItem("t4_user") || null,
+  view: "home",
+  tab: "classifica",
+  restaurants: [],
+  sessions: [],
+  votes: [],
+  ctx: {}, // dati di navigazione
+};
+
+/* ============================================================
+   LAYER DATI  (Supabase se configurato, altrimenti localStorage)
+   ============================================================ */
+const LS_KEY = "t4_data_v1";
+function lsLoad(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY)) || {restaurants:[],sessions:[],votes:[]}; }
+  catch(e){ return {restaurants:[],sessions:[],votes:[]}; }
+}
+function lsSave(d){ localStorage.setItem(LS_KEY, JSON.stringify(d)); }
+function uid(){ return "id_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+function initBackend(){
+  if(SUPABASE_URL && SUPABASE_ANON && window.supabase){
+    try{
+      SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      usingCloud = true;
+    }catch(e){ usingCloud=false; }
+  }
+}
+
+const DB = {
+  async fetchAll(){
+    if(usingCloud){
+      const [r,s,v] = await Promise.all([
+        SB.from("restaurants").select("*"),
+        SB.from("sessions").select("*"),
+        SB.from("votes").select("*"),
+      ]);
+      if(r.error||s.error||v.error){ throw (r.error||s.error||v.error); }
+      state.restaurants = r.data||[];
+      state.sessions = s.data||[];
+      state.votes = v.data||[];
+    }else{
+      const d = lsLoad();
+      state.restaurants = d.restaurants;
+      state.sessions = d.sessions;
+      state.votes = d.votes;
+    }
+  },
+  async addRestaurant(name, country){
+    if(usingCloud){
+      const {data,error} = await SB.from("restaurants").insert({name,country}).select().single();
+      if(error) throw error; return data;
+    }else{
+      const d=lsLoad(); const rec={id:uid(),name,country,created_at:new Date().toISOString()};
+      d.restaurants.push(rec); lsSave(d); return rec;
+    }
+  },
+  async addSession(restaurant_id){
+    const date = new Date().toISOString().slice(0,10);
+    if(usingCloud){
+      const {data,error} = await SB.from("sessions").insert({restaurant_id,date,created_by:state.user}).select().single();
+      if(error) throw error; return data;
+    }else{
+      const d=lsLoad(); const rec={id:uid(),restaurant_id,date,created_by:state.user,created_at:new Date().toISOString()};
+      d.sessions.push(rec); lsSave(d); return rec;
+    }
+  },
+  async upsertVote(vote){
+    // vote: {session_id, restaurant_id, user_name, location,menu,prezzo,servizio,special,special_note}
+    if(usingCloud){
+      const {data,error} = await SB.from("votes").upsert(vote, {onConflict:"session_id,user_name"}).select().single();
+      if(error) throw error; return data;
+    }else{
+      const d=lsLoad();
+      const i = d.votes.findIndex(x=>x.session_id===vote.session_id && x.user_name===vote.user_name);
+      if(i>=0){ d.votes[i] = {...d.votes[i],...vote}; }
+      else{ d.votes.push({id:uid(),created_at:new Date().toISOString(),...vote}); }
+      lsSave(d); return vote;
+    }
+  }
+};
+
+/* ============================================================
+   CALCOLI
+   ============================================================ */
+function sessionsOf(rid){ return state.sessions.filter(s=>s.restaurant_id===rid); }
+function votesOfSession(sid){ return state.votes.filter(v=>v.session_id===sid); }
+function votesOfRestaurant(rid){
+  const sids = sessionsOf(rid).map(s=>s.id);
+  return state.votes.filter(v=>sids.includes(v.session_id));
+}
+function avg(arr){ if(!arr.length) return null; return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function voteTotal(v){ return avg(CATS.map(c=>Number(v[c.key]))); }
+
+// media per categoria su tutti i voti passati
+function catAverages(votes){
+  const out={};
+  CATS.forEach(c=>{ out[c.key]=avg(votes.map(v=>Number(v[c.key])).filter(n=>!isNaN(n))); });
+  return out;
+}
+// TOTALE ristorante = media di TUTTI i voti di tutte le sessioni (media delle 5 categorie di ogni voto, poi media)
+function restaurantTotal(rid){
+  const vs=votesOfRestaurant(rid);
+  if(!vs.length) return null;
+  return avg(vs.map(voteTotal));
+}
+function sessionAvg(sid){
+  const vs=votesOfSession(sid);
+  if(!vs.length) return null;
+  return avg(vs.map(voteTotal));
+}
+function fmt(n){ return n==null? "—" : n.toFixed(1).replace(".",","); }
+function fmtDate(iso){
+  if(!iso) return "";
+  const d=new Date(iso+"T00:00:00");
+  return d.getDate()+" "+MONTHS[d.getMonth()]+" "+String(d.getFullYear()).slice(2);
+}
+function lastVisit(rid){
+  const s=sessionsOf(rid);
+  if(!s.length) return null;
+  return s.map(x=>x.date).sort().slice(-1)[0];
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const app = ()=>document.getElementById("app");
+
+function render(){
+  if(!state.user){ renderOnboarding(); return; }
+  switch(state.view){
+    case "home": renderHome(); break;
+    case "newSessionPick": renderPick(); break;
+    case "vote": renderVote(); break;
+    case "detail": renderDetail(); break;
+    case "settings": renderSettings(); break;
+    default: renderHome();
+  }
+}
+
+/* ---------- Onboarding ---------- */
+function renderOnboarding(){
+  app().innerHTML = `
+  <div class="onbwrap">
+    <div class="eyebrow">Recensioni</div>
+    <div class="title">La Tavola dei 4</div>
+    <p class="onbsub">Chi sei? Tocca il tuo nome: da questo momento l'app registrerà i voti a nome tuo.</p>
+    <div class="who-grid">
+      ${FRIENDS.map((f,i)=>`
+        <div class="who-card" style="animation-delay:${i*70}ms" onclick="pickUser('${f}')">
+          <div class="av" style="background:${AV_COLORS[f]}">${f[0]}</div>
+          <div class="wn">${f}</div>
+        </div>`).join("")}
+    </div>
+    <p class="fab-note">${usingCloud? "Connesso al database condiviso ✓" : "Modalità locale · configurabile con Supabase"}</p>
+  </div>`;
+}
+window.pickUser = async (name)=>{
+  state.user = name;
+  localStorage.setItem("t4_user", name);
+  toast(`Ciao ${name}! 👋`);
+  await refresh(false);
+  go("home");
+};
+
+/* ---------- Home ---------- */
+function renderHome(){
+  const ranked = [...state.restaurants]
+    .map(r=>({r, total:restaurantTotal(r.id), nsess:sessionsOf(r.id).length}))
+    .filter(x=>true);
+
+  let ordered;
+  if(state.tab==="classifica"){
+    ordered = ranked.slice().sort((a,b)=>{
+      if(a.total==null) return 1; if(b.total==null) return -1;
+      return b.total-a.total;
+    });
+  }else{
+    ordered = ranked.slice().sort((a,b)=>{
+      const la=lastVisit(a.r.id)||"", lb=lastVisit(b.r.id)||"";
+      return lb.localeCompare(la);
+    });
+  }
+
+  const cards = ordered.filter(x=>x.nsess>0);
+
+  app().innerHTML = `
+  <div class="screen">
+    <div class="headrow">
+      <div>
+        <div class="eyebrow">Recensioni</div>
+        <h1 class="title">La Tavola dei 4</h1>
+      </div>
+      <div class="userchip" onclick="go('settings')"><span class="dot"></span>${state.user}</div>
+    </div>
+
+    <div class="actionrow">
+      <button class="btn-primary" onclick="startNewSession()">
+        <svg viewBox="0 0 24 24" fill="none" width="20" height="20" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Nuova serata
+      </button>
+      <button class="iconbtn" id="refreshBtn" onclick="liveRefresh()" aria-label="Aggiorna">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+      </button>
+      <button class="iconbtn" onclick="shareApp()" aria-label="Invita">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+      </button>
+    </div>
+
+    <div class="seg" id="seg">
+      <div class="pill" id="segpill"></div>
+      <button class="${state.tab==='classifica'?'active':''}" onclick="setTab('classifica')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+        Classifica
+      </button>
+      <button class="${state.tab==='visite'?'active':''}" onclick="setTab('visite')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v18M4 8c4 0 4-3 8-3s4 3 8 3M20 3v11c-4 0-4-3-8-3"/></svg>
+        Ultime visite
+      </button>
+    </div>
+
+    <div class="statusbar">
+      <span class="sd ${usingCloud?'on':''}"></span>
+      ${usingCloud? "Database condiviso live" : "Salvato su questo telefono · <span class='linkbtn' onclick=\"go('settings')\">collega Supabase</span>"}
+    </div>
+
+    <div class="list" id="list">
+      ${cards.length? cards.map((x,i)=>rcard(x,i)).join("") : emptyState()}
+    </div>
+  </div>`;
+
+  positionPill();
+  // animazione barre categorie
+  requestAnimationFrame(()=>{ /* nothing extra */ });
+}
+
+function rcard(x,i){
+  const {r,total,nsess}=x;
+  const cats = catAverages(votesOfRestaurant(r.id));
+  const rankNum = (state.tab==='classifica'? i+1 : null);
+  const isTop = state.tab==='classifica' && i===0;
+  const lv = lastVisit(r.id);
+  return `
+  <div class="rcard" style="animation-delay:${i*55}ms" onclick="openDetail('${r.id}')">
+    <div class="rtop">
+      ${rankNum? `<div class="rank ${isTop?'gold':''}">${rankNum}</div>`:''}
+      <div style="min-width:0;flex:1;">
+        <h3 class="rname">${escapeHtml(r.name)}</h3>
+        <div class="rmeta">
+          ${nsess} serat${nsess===1?'a':'e'} · ultima ${fmtDate(lv)}
+          ${r.country? `<span class="flagdot">📍 ${escapeHtml(r.country)}</span>`:''}
+        </div>
+      </div>
+      <div class="rtotal ${isTop?'top':''}">
+        <div class="num">${fmt(total)}</div>
+        <div class="lbl">TOTALE</div>
+      </div>
+    </div>
+    <div class="rdiv"></div>
+    <div class="cats">
+      ${CATS.map(c=>`<div class="cat"><div class="v">${fmt(cats[c.key])}</div><div class="k">${c.label}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function emptyState(){
+  return `<div class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+    <div class="big">Ancora nessuna serata</div>
+    <div>Tocca <b>Nuova serata</b> per aggiungere il primo ristorante e iniziare a votare.</div>
+  </div>`;
+}
+
+/* segmented pill positioning */
+function positionPill(){
+  const seg=document.getElementById("seg"); if(!seg) return;
+  const btns=seg.querySelectorAll("button");
+  const idx=state.tab==='classifica'?0:1;
+  const b=btns[idx]; const pill=document.getElementById("segpill");
+  pill.style.width=b.offsetWidth+"px";
+  pill.style.transform=`translateX(${b.offsetLeft-6}px)`;
+}
+window.setTab=(t)=>{ if(state.tab===t)return; state.tab=t; renderHome(); };
+
+/* ---------- Pick restaurant ---------- */
+function renderPick(){
+  const rests=[...state.restaurants].sort((a,b)=>{
+    const la=lastVisit(a.id)||"", lb=lastVisit(b.id)||"";
+    if(la||lb) return lb.localeCompare(la);
+    return a.name.localeCompare(b.name);
+  });
+  const sel=state.ctx.selRid;
+  app().innerHTML=`
+  <div class="screen slideLeft">
+    <div class="sheethead">
+      <button class="back" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="sheettitle">Nuova serata</div>
+    </div>
+
+    <div class="section-label">Ristoranti già provati</div>
+    ${rests.length? `<div class="picklist">
+      ${rests.map(r=>`
+      <div class="pickitem ${sel===r.id?'sel':''}" onclick="selectRest('${r.id}')">
+        <div style="min-width:0">
+          <div class="pn">${escapeHtml(r.name)}</div>
+          <div class="pc">${r.country? "📍 "+escapeHtml(r.country)+" · ":""}${sessionsOf(r.id).length} serate</div>
+        </div>
+        <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+      </div>`).join("")}
+    </div>`
+    : `<div class="note">Nessun ristorante ancora. Aggiungine uno nuovo qui sotto 👇</div>`}
+
+    <div class="addnew" onclick="toggleNewRest()" id="addNewToggle">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nuovo ristorante
+    </div>
+
+    <div id="newRestForm" style="display:${state.ctx.showNew?'block':'none'};margin-top:16px;">
+      <div class="field">
+        <label>Nome del ristorante</label>
+        <input class="input" id="newName" placeholder="Es. La Torre Pizzeria" value="${escapeHtml(state.ctx.newName||'')}">
+      </div>
+      <div class="field">
+        <label>Paese</label>
+        <input class="input" id="newCountry" placeholder="Es. Italia" value="${escapeHtml(state.ctx.newCountry||'')}">
+      </div>
+    </div>
+  </div>
+  <div class="savebar">
+    <button class="btn-primary" onclick="confirmPick()">Continua a votare</button>
+  </div>`;
+}
+window.selectRest=(rid)=>{
+  state.ctx.selRid = state.ctx.selRid===rid? null : rid;
+  state.ctx.showNew=false;
+  renderPick();
+};
+window.toggleNewRest=()=>{
+  state.ctx.showNew=!state.ctx.showNew;
+  if(state.ctx.showNew) state.ctx.selRid=null;
+  renderPick();
+  if(state.ctx.showNew){ setTimeout(()=>document.getElementById("newName")?.focus(),150); }
+};
+window.confirmPick=async()=>{
+  // salva form values
+  const nn=document.getElementById("newName");
+  const nc=document.getElementById("newCountry");
+  if(state.ctx.showNew && nn){ state.ctx.newName=nn.value; state.ctx.newCountry=nc.value; }
+
+  let rid=state.ctx.selRid;
+  try{
+    if(state.ctx.showNew){
+      const name=(state.ctx.newName||"").trim();
+      if(!name){ toast("Scrivi il nome del ristorante"); return; }
+      const rec=await DB.addRestaurant(name,(state.ctx.newCountry||"").trim());
+      rid=rec.id; state.restaurants.push(rec);
+    }
+    if(!rid){ toast("Seleziona o aggiungi un ristorante"); return; }
+    // crea nuova sessione
+    const sess=await DB.addSession(rid);
+    state.sessions.push(sess);
+    state.ctx={sessionId:sess.id, rid};
+    go("vote");
+  }catch(e){ toast("Errore: "+(e.message||e)); }
+};
+
+/* ---------- Vote ---------- */
+function renderVote(){
+  const rid=state.ctx.rid;
+  const r=state.restaurants.find(x=>x.id===rid);
+  // valori esistenti dell'utente in questa sessione (se torna indietro)
+  const existing = state.votes.find(v=>v.session_id===state.ctx.sessionId && v.user_name===state.user) || {};
+  const vals = state.ctx.vals || {
+    location:existing.location??7, menu:existing.menu??7, prezzo:existing.prezzo??7,
+    servizio:existing.servizio??7, special:existing.special??7
+  };
+  state.ctx.vals=vals;
+  const note = state.ctx.note ?? (existing.special_note||"");
+
+  app().innerHTML=`
+  <div class="screen slideLeft">
+    <div class="sheethead">
+      <button class="back" onclick="go('newSessionPick')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div>
+        <div class="sheettitle">${escapeHtml(r.name)}</div>
+        <div style="color:var(--muted);font-size:13px;margin-top:2px;">${r.country? "📍 "+escapeHtml(r.country)+" · ":""}I tuoi voti · ${state.user}</div>
+      </div>
+    </div>
+
+    ${CATS.map((c,i)=>`
+      <div class="voter" style="animation-delay:${i*50}ms">
+        <div class="vhead">
+          <div class="vname">${c.label}</div>
+          <div class="vval" id="val_${c.key}">${(vals[c.key]).toFixed(1).replace(".",",")}</div>
+        </div>
+        <input class="slider" type="range" min="1" max="10" step="0.5" value="${vals[c.key]}"
+          oninput="onSlide('${c.key}',this)" style="--pct:${(vals[c.key]-1)/9*100}%">
+        <div class="scalerow"><span>1</span><span>5</span><span>10</span></div>
+        ${c.key==="special"? `
+          <div class="field" style="margin:12px 0 4px;">
+            <label>Nota special (scritta a mano)</label>
+            <textarea class="input" id="specialNote" placeholder="Cosa rende speciale questo posto stasera?">${escapeHtml(note)}</textarea>
+          </div>`:""}
+      </div>
+    `).join("")}
+
+    <div class="fab-note">La media totale del tuo voto si calcola dalle 5 categorie.</div>
+  </div>
+  <div class="savebar">
+    <button class="btn-primary" onclick="saveVote()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M20 6L9 17l-5-5"/></svg>
+      Salva il mio voto
+    </button>
+  </div>`;
+}
+window.onSlide=(key,el)=>{
+  const v=parseFloat(el.value);
+  state.ctx.vals[key]=v;
+  el.style.setProperty("--pct",((v-1)/9*100)+"%");
+  const lab=document.getElementById("val_"+key);
+  lab.textContent=v.toFixed(1).replace(".",",");
+  lab.classList.add("bump");
+  setTimeout(()=>lab.classList.remove("bump"),130);
+};
+window.saveVote=async()=>{
+  const noteEl=document.getElementById("specialNote");
+  const note=noteEl? noteEl.value.trim() : "";
+  const vals=state.ctx.vals;
+  const vote={
+    session_id:state.ctx.sessionId,
+    restaurant_id:state.ctx.rid,
+    user_name:state.user,
+    location:vals.location, menu:vals.menu, prezzo:vals.prezzo,
+    servizio:vals.servizio, special:vals.special, special_note:note
+  };
+  try{
+    await DB.upsertVote(vote);
+    // aggiorna cache locale
+    const i=state.votes.findIndex(v=>v.session_id===vote.session_id && v.user_name===state.user);
+    if(i>=0) state.votes[i]={...state.votes[i],...vote}; else state.votes.push({id:uid(),...vote});
+    toast("Voto salvato! 🎉");
+    state.ctx.note=undefined; state.ctx.vals=undefined;
+    openDetail(vote.restaurant_id);
+  }catch(e){ toast("Errore nel salvataggio: "+(e.message||e)); }
+};
+
+/* ---------- Detail ---------- */
+function renderDetail(){
+  const rid=state.ctx.rid;
+  const r=state.restaurants.find(x=>x.id===rid);
+  if(!r){ go("home"); return; }
+  const allVotes=votesOfRestaurant(rid);
+  const total=restaurantTotal(rid);
+  const cats=catAverages(allVotes);
+  const sess=sessionsOf(rid).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+  app().innerHTML=`
+  <div class="screen slideLeft">
+    <div class="sheethead">
+      <button class="back" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="sheettitle">Resoconto</div>
+    </div>
+
+    <div class="hero">
+      <div class="hn">${escapeHtml(r.name)}</div>
+      <div class="hc">${r.country? "📍 "+escapeHtml(r.country)+" · ":""}${sess.length} serat${sess.length===1?'a':'e'} · ${allVotes.length} vot${allVotes.length===1?'o':'i'}</div>
+      <div class="hbig">${fmt(total)}</div>
+      <div class="hlbl">MEDIA TOTALE</div>
+      <div class="miniprog">
+        ${CATS.map(c=>{
+          const val=cats[c.key];
+          return `<div class="progrow">
+            <div class="pk">${c.label}</div>
+            <div class="pbar"><div class="pfill" data-w="${val? (val/10*100):0}"></div></div>
+            <div class="pv">${fmt(val)}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+
+    <div class="section-label">Le serate (media per visita)</div>
+    ${sess.map((s,si)=>{
+      const vs=votesOfSession(s.id);
+      const sAvg=sessionAvg(s.id);
+      return `
+      <div class="sess" style="animation-delay:${si*60}ms">
+        <div class="sesshead">
+          <div class="sd">🍽️ ${fmtDate(s.date)}</div>
+          <div class="savg">${fmt(sAvg)}</div>
+        </div>
+        <div class="votelist">
+          ${vs.length? vs.map(v=>voteRow(v)).join("") : `<div class="pc" style="color:var(--muted);font-size:13px;padding:4px 2px;">Nessun voto in questa serata.</div>`}
+        </div>
+      </div>`;
+    }).join("")}
+
+    <div class="savebar">
+      <button class="btn-primary" onclick="addSessionToRest('${rid}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" width="20" height="20"><path d="M12 5v14M5 12h14"/></svg>
+        Vota una nuova serata qui
+      </button>
+    </div>
+  </div>`;
+
+  requestAnimationFrame(()=>{
+    document.querySelectorAll(".pfill").forEach(el=>{ el.style.width=(el.dataset.w||0)+"%"; });
+  });
+}
+function voteRow(v){
+  const tot=voteTotal(v);
+  const c=AV_COLORS[v.user_name]||"#2d6a45";
+  return `
+  <div class="vrow">
+    <div class="vr-top">
+      <div class="who"><span class="av" style="background:${c}">${(v.user_name||'?')[0]}</span>${escapeHtml(v.user_name||'?')}</div>
+      <div class="vr-tot">${fmt(tot)}</div>
+    </div>
+    <div class="vscores">
+      ${CATS.map(cc=>`<div class="vscore">${cc.label} <b>${fmt(Number(v[cc.key]))}</b></div>`).join("")}
+    </div>
+    ${v.special_note? `<div class="specialnote"><span class="sl">Special</span>${escapeHtml(v.special_note)}</div>`:""}
+  </div>`;
+}
+window.openDetail=(rid)=>{ state.ctx={rid}; go("detail"); };
+window.addSessionToRest=async(rid)=>{
+  try{
+    const sess=await DB.addSession(rid);
+    state.sessions.push(sess);
+    state.ctx={sessionId:sess.id, rid};
+    go("vote");
+  }catch(e){ toast("Errore: "+(e.message||e)); }
+};
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  app().innerHTML=`
+  <div class="screen slideLeft">
+    <div class="sheethead">
+      <button class="back" onclick="go('home')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="sheettitle">Impostazioni</div>
+    </div>
+
+    <div class="section-label">Il tuo profilo</div>
+    <div class="picklist" style="max-height:none;">
+      ${FRIENDS.map(f=>`
+      <div class="pickitem ${state.user===f?'sel':''}" onclick="switchUser('${f}')">
+        <div class="av" style="width:34px;height:34px;border-radius:50%;background:${AV_COLORS[f]};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">${f[0]}</div>
+        <div class="pn" style="font-size:17px;">${f}</div>
+        <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+      </div>`).join("")}
+    </div>
+
+    <div class="section-label">Sincronizzazione</div>
+    <div class="note">
+      Stato: <b>${usingCloud? "Database condiviso attivo ✓" : "Solo locale (questo telefono)"}</b><br><br>
+      ${usingCloud
+        ? "I voti di tutti gli amici sono condivisi in tempo reale. Usa il tasto aggiorna nella home per vedere i voti live mentre votate insieme."
+        : "Per attivare i voti condivisi tra amici, apri il file <code>index.html</code> e incolla URL e chiave Supabase nelle prime righe dello script. Trovi la guida completa nel messaggio di Claude."}
+    </div>
+
+    <div class="section-label">Invita gli amici</div>
+    <button class="btn-primary" onclick="shareApp()" style="margin-bottom:8px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+      Condividi il link su WhatsApp
+    </button>
+    <div class="fab-note">Chi apre il link sceglie chi è e inizia a votare.</div>
+  </div>`;
+}
+window.switchUser=(f)=>{ state.user=f; localStorage.setItem("t4_user",f); toast(`Ora sei ${f}`); go("home"); };
+
+/* ============================================================
+   NAVIGAZIONE + UTIL
+   ============================================================ */
+function go(view){ state.view=view; render(); window.scrollTo(0,0); }
+window.startNewSession=()=>{ state.ctx={selRid:null,showNew:false}; go("newSessionPick"); };
+
+window.liveRefresh=async()=>{
+  const btn=document.getElementById("refreshBtn");
+  const icon=btn?.querySelector("svg");
+  if(icon){ icon.classList.remove("spin"); void icon.offsetWidth; icon.classList.add("spin"); }
+  await refresh(true);
+  renderHome();
+};
+async function refresh(showToast){
+  try{
+    await DB.fetchAll();
+    if(showToast) toast(usingCloud? "Voti aggiornati ✓" : "Aggiornato");
+  }catch(e){ if(showToast) toast("Errore aggiornamento"); }
+}
+
+window.shareApp=async()=>{
+  const url=location.href.split("#")[0];
+  const text=`🍽️ Unisciti a "La Tavola dei 4"! Vota i ristoranti con noi: ${url}`;
+  if(navigator.share){
+    try{ await navigator.share({title:"La Tavola dei 4",text,url}); return; }catch(e){}
+  }
+  const wa="https://wa.me/?text="+encodeURIComponent(text);
+  window.open(wa,"_blank");
+};
+
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.innerHTML=msg; t.classList.add("show");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200);
+}
+function escapeHtml(s){ return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+window.addEventListener("resize", ()=>{ if(state.view==="home") positionPill(); });
+
+/* ---------- BOOT ---------- */
+(async function boot(){
+  initBackend();
+  await refresh(false);
+  render();
+})();
+</script>
+</body>
+</html>
