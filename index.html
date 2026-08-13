@@ -193,6 +193,27 @@ textarea.input{resize:none;min-height:80px;line-height:1.4;}
 .slider::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid var(--green-2);}
 .scalerow{display:flex;justify-content:space-between;font-size:10px;color:var(--muted-2);padding:0 2px;}
 
+/* Number buttons voting */
+.livecard{position:sticky;top:calc(env(safe-area-inset-top) + 2px);z-index:15;
+  background:linear-gradient(180deg,var(--green-2),var(--green));color:#fff;border-radius:24px;
+  padding:16px 22px;display:flex;align-items:center;justify-content:space-between;
+  box-shadow:0 12px 26px rgba(31,77,51,.32);margin-bottom:18px;}
+.livecard .lt-lbl{font-size:14px;font-weight:600;}
+.livecard .lt-sub{font-size:11.5px;opacity:.75;margin-top:3px;}
+.livecard .lt-num{font-family:var(--serif);font-size:46px;font-weight:600;line-height:1;transition:transform .16s cubic-bezier(.3,1.4,.4,1);letter-spacing:-.02em;}
+.livecard .lt-num.bump{transform:scale(1.18);}
+.numgrid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin:14px 0 2px;}
+.numbtn{height:46px;border-radius:12px;background:var(--card);border:1px solid var(--line);
+  font-size:15px;font-weight:700;color:var(--muted);box-shadow:var(--shadow-soft);padding:0;
+  transition:transform .12s ease,background .16s,color .16s,border-color .16s;
+  display:flex;align-items:center;justify-content:center;}
+.numbtn:active{transform:scale(.88);}
+.numbtn.on{background:linear-gradient(180deg,var(--green-2),var(--green));color:#fff;
+  border-color:var(--green);box-shadow:0 6px 14px rgba(31,77,51,.3);transform:scale(1.05);}
+.numbtn.pop{animation:pop .28s cubic-bezier(.3,1.5,.4,1);}
+@keyframes pop{0%{transform:scale(1.05);}45%{transform:scale(1.22);}100%{transform:scale(1.05);}}
+.voter .vval.empty{color:var(--muted-2);font-size:20px;}
+
 /* Detail */
 .hero{background:linear-gradient(180deg,var(--card-hi),var(--card));border:1px solid var(--line);border-radius:var(--radius-lg);
   padding:22px;box-shadow:var(--shadow);text-align:center;margin-top:8px;animation:cardIn .5s both;}
@@ -266,11 +287,13 @@ code{background:rgba(31,77,51,.08);padding:1px 6px;border-radius:6px;font-size:1
 <script>
 /* ============================================================
    CONFIG SUPABASE
-   Incolla qui URL e chiave "anon public" del tuo progetto.
-   Finché sono vuoti, l'app funziona in locale su questo telefono.
+   NON serve toccare il codice: puoi incollare URL e chiave
+   direttamente dentro l'app (Impostazioni). Chi apre il link
+   condiviso si collega in automatico.
+   (Opzionale) puoi comunque metterli qui come default:
    ============================================================ */
-const SUPABASE_URL  = ""; // es: "https://xxxx.supabase.co"
-const SUPABASE_ANON = ""; // es: "eyJhbGciOi..."
+const SUPABASE_URL  = ""; // opzionale
+const SUPABASE_ANON = ""; // opzionale
 
 /* ---------- costanti ---------- */
 const FRIENDS = ["Luca","Arianna","Asia","Elia"];
@@ -308,13 +331,41 @@ function lsLoad(){
 function lsSave(d){ localStorage.setItem(LS_KEY, JSON.stringify(d)); }
 function uid(){ return "id_"+Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 
+function getSbConfig(){
+  // priorità: link condiviso (#sb=) → salvato in locale → default nel codice
+  try{
+    const h = location.hash || "";
+    const m = h.match(/sb=([^&]+)/);
+    if(m){
+      const dec = atob(decodeURIComponent(m[1]));
+      const [u,k] = dec.split("|");
+      if(u && k){
+        localStorage.setItem("t4_sb_url", u);
+        localStorage.setItem("t4_sb_key", k);
+        // pulisci l'hash dalla barra indirizzi
+        history.replaceState(null,"",location.pathname+location.search);
+      }
+    }
+  }catch(e){}
+  const url = localStorage.getItem("t4_sb_url") || SUPABASE_URL;
+  const key = localStorage.getItem("t4_sb_key") || SUPABASE_ANON;
+  return {url,key};
+}
 function initBackend(){
-  if(SUPABASE_URL && SUPABASE_ANON && window.supabase){
+  const {url,key}=getSbConfig();
+  usingCloud=false; SB=null;
+  if(url && key && window.supabase){
     try{
-      SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+      SB = window.supabase.createClient(url, key);
       usingCloud = true;
     }catch(e){ usingCloud=false; }
   }
+}
+function sbConfigString(){
+  const url = localStorage.getItem("t4_sb_url") || SUPABASE_URL;
+  const key = localStorage.getItem("t4_sb_key") || SUPABASE_ANON;
+  if(!url || !key) return null;
+  return encodeURIComponent(btoa(url+"|"+key));
 }
 
 const DB = {
@@ -661,8 +712,8 @@ function renderVote(){
   // valori esistenti dell'utente in questa sessione (se torna indietro)
   const existing = state.votes.find(v=>v.session_id===state.ctx.sessionId && v.user_name===state.user) || {};
   const vals = state.ctx.vals || {
-    location:existing.location??7, menu:existing.menu??7, prezzo:existing.prezzo??7,
-    servizio:existing.servizio??7, special:existing.special??7
+    location:existing.location??null, menu:existing.menu??null, prezzo:existing.prezzo??null,
+    servizio:existing.servizio??null, special:existing.special??null
   };
   state.ctx.vals=vals;
   const note = state.ctx.note ?? (existing.special_note||"");
@@ -677,24 +728,34 @@ function renderVote(){
       </div>
     </div>
 
+    <div class="livecard">
+      <div>
+        <div class="lt-lbl">Il tuo voto finale</div>
+        <div class="lt-sub" id="ltSub">Tocca i numeri qui sotto</div>
+      </div>
+      <div class="lt-num" id="ltNum">—</div>
+    </div>
+
     ${CATS.map((c,i)=>`
-      <div class="voter" style="animation-delay:${i*50}ms">
+      <div class="voter" style="animation-delay:${i*45}ms">
         <div class="vhead">
           <div class="vname">${c.label}</div>
-          <div class="vval" id="val_${c.key}">${(vals[c.key]).toFixed(1).replace(".",",")}</div>
+          <div class="vval ${vals[c.key]==null?'empty':''}" id="val_${c.key}">${vals[c.key]==null?'—':vals[c.key]}</div>
         </div>
-        <input class="slider" type="range" min="1" max="10" step="0.5" value="${vals[c.key]}"
-          oninput="onSlide('${c.key}',this)" style="--pct:${(vals[c.key]-1)/9*100}%">
-        <div class="scalerow"><span>1</span><span>5</span><span>10</span></div>
+        <div class="numgrid" data-cat="${c.key}">
+          ${Array.from({length:10},(_,k)=>k+1).map(n=>`
+            <button class="numbtn ${vals[c.key]===n?'on':''}" onclick="pickNum('${c.key}',${n})">${n}</button>
+          `).join("")}
+        </div>
         ${c.key==="special"? `
-          <div class="field" style="margin:12px 0 4px;">
+          <div class="field" style="margin:14px 0 2px;">
             <label>Nota special (scritta a mano)</label>
             <textarea class="input" id="specialNote" placeholder="Cosa rende speciale questo posto stasera?">${escapeHtml(note)}</textarea>
           </div>`:""}
       </div>
     `).join("")}
 
-    <div class="fab-note">La media totale del tuo voto si calcola dalle 5 categorie.</div>
+    <div class="fab-note">Il voto finale è la media delle 5 categorie e si aggiorna live.</div>
   </div>
   <div class="savebar">
     <button class="btn-primary" onclick="saveVote()">
@@ -702,20 +763,40 @@ function renderVote(){
       Salva il mio voto
     </button>
   </div>`;
+  updateLiveTotal();
 }
-window.onSlide=(key,el)=>{
-  const v=parseFloat(el.value);
-  state.ctx.vals[key]=v;
-  el.style.setProperty("--pct",((v-1)/9*100)+"%");
+window.pickNum=(key,n)=>{
+  state.ctx.vals[key]=n;
+  // aggiorna i bottoni della categoria
+  const grid=document.querySelector(`.numgrid[data-cat="${key}"]`);
+  grid.querySelectorAll(".numbtn").forEach(b=>{
+    const on = parseInt(b.textContent,10)===n;
+    b.classList.toggle("on",on);
+    if(on){ b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); }
+  });
   const lab=document.getElementById("val_"+key);
-  lab.textContent=v.toFixed(1).replace(".",",");
-  lab.classList.add("bump");
-  setTimeout(()=>lab.classList.remove("bump"),130);
+  lab.textContent=n; lab.classList.remove("empty");
+  lab.classList.add("bump"); setTimeout(()=>lab.classList.remove("bump"),140);
+  updateLiveTotal();
 };
+function updateLiveTotal(){
+  const vals=state.ctx.vals;
+  const chosen=CATS.map(c=>vals[c.key]).filter(v=>v!=null);
+  const num=document.getElementById("ltNum");
+  const sub=document.getElementById("ltSub");
+  if(!num) return;
+  if(chosen.length===0){ num.textContent="—"; sub.textContent="Tocca i numeri qui sotto"; return; }
+  const t=avg(chosen);
+  num.textContent=fmt(t);
+  num.classList.remove("bump"); void num.offsetWidth; num.classList.add("bump");
+  sub.textContent = chosen.length<5 ? `${chosen.length}/5 categorie votate` : "Tutte le categorie votate ✓";
+}
 window.saveVote=async()=>{
+  const vals=state.ctx.vals;
+  const missing=CATS.filter(c=>vals[c.key]==null);
+  if(missing.length){ toast("Completa tutte le categorie ("+missing.map(m=>m.label).join(", ")+")"); return; }
   const noteEl=document.getElementById("specialNote");
   const note=noteEl? noteEl.value.trim() : "";
-  const vals=state.ctx.vals;
   const vote={
     session_id:state.ctx.sessionId,
     restaurant_id:state.ctx.rid,
@@ -840,23 +921,48 @@ function renderSettings(){
       </div>`).join("")}
     </div>
 
-    <div class="section-label">Sincronizzazione</div>
+    <div class="section-label">Database condiviso (Supabase)</div>
     <div class="note">
-      Stato: <b>${usingCloud? "Database condiviso attivo ✓" : "Solo locale (questo telefono)"}</b><br><br>
+      Stato: <b>${usingCloud? "Attivo ✓ — i voti sono condivisi live" : "Non collegato — solo questo telefono"}</b><br><br>
       ${usingCloud
-        ? "I voti di tutti gli amici sono condivisi in tempo reale. Usa il tasto aggiorna nella home per vedere i voti live mentre votate insieme."
-        : "Per attivare i voti condivisi tra amici, apri il file <code>index.html</code> e incolla URL e chiave Supabase nelle prime righe dello script. Trovi la guida completa nel messaggio di Claude."}
+        ? "Perfetto! Ora invita gli amici col pulsante qui sotto: il link contiene già la connessione, si collegano da soli senza fare nulla."
+        : "Incolla qui i 2 valori di Supabase (li configuri UNA volta sola). Poi condividi il link: gli amici si collegano in automatico."}
     </div>
+    <div class="field">
+      <label>Project URL</label>
+      <input class="input" id="sbUrl" placeholder="https://xxxx.supabase.co" value="${escapeHtml(localStorage.getItem('t4_sb_url')||'')}">
+    </div>
+    <div class="field">
+      <label>Chiave anon public</label>
+      <input class="input" id="sbKey" placeholder="eyJhbGciOi..." value="${escapeHtml(localStorage.getItem('t4_sb_key')||'')}">
+    </div>
+    <button class="btn-primary" onclick="saveSbConfig()" style="margin-bottom:8px;">Collega il database</button>
+    ${usingCloud? `<button class="addnew" onclick="clearSbConfig()" style="margin-top:6px;">Scollega</button>`:""}
 
     <div class="section-label">Invita gli amici</div>
     <button class="btn-primary" onclick="shareApp()" style="margin-bottom:8px;">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
       Condividi il link su WhatsApp
     </button>
-    <div class="fab-note">Chi apre il link sceglie chi è e inizia a votare.</div>
+    <div class="fab-note">${usingCloud? "Il link contiene la connessione: chi lo apre sceglie chi è e vota subito." : "Collega prima il database, così il link condividerà anche la connessione."}</div>
   </div>`;
 }
 window.switchUser=(f)=>{ state.user=f; localStorage.setItem("t4_user",f); toast(`Ora sei ${f}`); go("home"); };
+window.saveSbConfig=async()=>{
+  const u=document.getElementById("sbUrl").value.trim().replace(/\/$/,"");
+  const k=document.getElementById("sbKey").value.trim();
+  if(!u || !k){ toast("Inserisci sia URL che chiave"); return; }
+  if(!/^https:\/\/.+\.supabase\.co/.test(u)){ toast("URL non valido (deve finire con .supabase.co)"); return; }
+  localStorage.setItem("t4_sb_url",u); localStorage.setItem("t4_sb_key",k);
+  initBackend();
+  if(usingCloud){ toast("Database collegato ✓"); await refresh(false); }
+  else{ toast("Connessione non riuscita, controlla i valori"); }
+  go("settings");
+};
+window.clearSbConfig=async()=>{
+  localStorage.removeItem("t4_sb_url"); localStorage.removeItem("t4_sb_key");
+  initBackend(); await refresh(false); toast("Database scollegato"); go("settings");
+};
 
 /* ============================================================
    NAVIGAZIONE + UTIL
@@ -879,7 +985,9 @@ async function refresh(showToast){
 }
 
 window.shareApp=async()=>{
-  const url=location.href.split("#")[0];
+  let url=location.href.split("#")[0];
+  const cfg=sbConfigString();
+  if(cfg) url += "#sb="+cfg; // gli amici si collegano al database in automatico
   const text=`🍽️ Unisciti a "La Tavola dei 4"! Vota i ristoranti con noi: ${url}`;
   if(navigator.share){
     try{ await navigator.share({title:"La Tavola dei 4",text,url}); return; }catch(e){}
