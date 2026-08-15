@@ -1,0 +1,18 @@
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://sqcsaedoyyxloknrprgk.supabase.co/rest/v1/restaurants?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxY3NhZWRveXl4bG9rbnJwcmdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2MTIwNzAsImV4cCI6MjEwMjE4ODA3MH0.UsAN0asIbeQ4z_bGcDPyUbGhqcZPMwG9w-DLPvb3_Ho")
+          echo "HTTP $code"
+          if [ "$code" -ge 500 ]; then exit 1; fi
